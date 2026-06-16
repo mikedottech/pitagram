@@ -168,7 +168,7 @@ FAT16/FAT32 only and minimal cache to fit in 2.5 KB of SRAM.
 | Module             | Responsibility                                                  |
 | ------------------ |-----------------------------------------------------------------|
 | `main.cpp`         | `setup()` / `loop()`: delegates to `g_power` and `g_pitagram`   |
-| `Pitagram`         | Application FSM, image rotation, file traversal                 |
+| `Pitagram`         | Application FSM, image stream, file traversal                   |
 | `PowerMgr`         | Sleep, watchdog, MOSFET gating, VCC sense via bandgap reference |
 | `MFButtonHandler`  | ISR-driven debounce + multi-click + long-press state machine    |
 | `ISR.cpp`          | AVR vector wiring: `WDT_vect`, `INT0_vect`, `INT1_vect`         |
@@ -258,8 +258,7 @@ pitagram/
 └── README.md              # This file
 ```
 
-Photo directories (`source_pictures/`, `converted_pictures/`,
-`hashed_pictures/`) are gitignored: bring your own.
+Photo directories (`source_pictures/`, `converted_pictures/`) are gitignored: bring your own.
 
 ---
 
