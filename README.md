@@ -133,6 +133,17 @@ color) is the standard Waveshare ACeP mapping:
 |     5 | Yellow | (255, 243, 56)     |
 |     6 | Orange | (232, 126, 0)      |
 
+A real photo dithered against this 7-color palette, side-by-side with the
+original on a monitor:
+
+![Floyd-Steinberg dithering against the 7-color ACeP palette, shown on the Waveshare 5.65" panel next to the source image](./assets/EPDTest.jpg)
+
+The panel renders one color per pixel from the palette above; Floyd-Steinberg
+error diffusion spreads the quantization error to neighbouring pixels so the
+eye reconstructs intermediate tones from spatial mixing. Detail in the soil,
+moss and out-of-focus background is what dithering is doing here — without
+it, the same scene would collapse into solid color blobs.
+
 ---
 
 ## Firmware
@@ -256,3 +267,7 @@ is also MIT.
   reference driver this project's EPD layer is derived from.
 - **Bill Greiman** for SdFat, without which 2.5 KB of SRAM would not be
   enough.
+
+---
+
+![Pitagram, the finished product](./assets/FinalProduct.png)
