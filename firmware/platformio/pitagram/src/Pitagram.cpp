@@ -1,37 +1,3 @@
-/*
-* TODO:
-*  [X] Fix PickNextFile
-*  [X] Implement SD and e-Paper shutdown
-*  [X] Change BUSY pin to interrupt pin and fix sleep
-*  [X] Send power off command (0x2) to R02H and wait for BUSY = 0
-*  [X] Do the MOSFET circuit for
-*   [X] SD
-*   [X] EPD
-*   [X] Batt voltage divider
-*  [X] Low batt indicator
-*   [-] Get graphic and convert to 4bpp. Add to ROM.
-*   [-] Logic to show graphic
-*   [-] Logic to measure batt power: low level -> show graphic, critical -> clear EPD & enter OOB
-*   [X] OOB loop while voltage stays low + clear EPD
-*  [X] Write file with last visualized photo
-*  [X] Start from the beginning if last can't be found
-*  [X] Retry every 8 seconds if SD can't be initialized
-*  [X] Multifunction button
-*   [X] Implement show next and show prev
-*   [X] Interrupt pin + debouncing
-*   [X] Timer to detect single or double press
-*   [X] Single press >> next , Double press >> previous, Triple >> Set time, Long >> Standby
-*  [-] Write BODLEVEL fuse to 111 to disable BOD!
-*  [X] Get frame
-*  [X] Measure power draw -> 0.3 mA in rest mode
-*   [X] Cut LED trace
-*  [X] Mount the prototype!
-*   [X] Charge batt
-*   [X] Mount buttons
-*   [X] Batt connector
-*   [X] Connect and stick battery
-*/
-
 #include "Pitagram.h"
 #include "Debug.h"
 
