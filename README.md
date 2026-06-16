@@ -1,84 +1,111 @@
 # Pitagram
 
-An ultra-low-power digital photo frame built around a 7-color e-paper panel
-and an 8 MHz ATmega32U4 with **2.5 KB of SRAM**. The whole image processing
-pipeline runs offline on a PC; the microcontroller only streams pre-paletized
-binary frames from an SD card to the panel, then goes back to sleep for
-the rest of the day.
+> A multi-color digital photo frame that **streams 134 KB frames through 2.5 KB of SRAM**, draws **0.3 mA at rest**, and runs for **roughly four months** between charges on a recycled Nokia phone battery.
 
-- One image rotation per day, on a 24 h watchdog tick.
-- Aggressive power gating: SD and EPD are physically cut from VCC via
-  MOSFETs whenever they are not in use.
-- Single multi-function button: next / previous / pause-rotation / standby.
-- Powered by a recycled Nokia BL-5C-style cell with a USB charging board.
-- Measured idle current: **~0.3 mA**.
+![Pitagram, the finished product](./assets/FinalProduct.png)
 
-> **Status:** functional, in daily use. The repo is published as-is from
-> a working build; some rough edges remain (see [Known issues](#known-issues)).
+---
+
+## Why I built this
+
+The spark was a YouTube video about color e-paper. I had never actually
+seen one in person and wanted to know two things: *what does ACeP color
+really look like in real light?*, and *how far can battery life be pushed
+on a panel that, in principle, draws nothing while it's not refreshing?*
+
+I gave myself one self-imposed constraint: **build it almost entirely from
+off-the-shelf parts**. No custom PCB, no exotic silicon, no chasing the
+last microamp with charge pumps and supercaps. The whole bill of materials
+is a Pro Micro, a Waveshare panel, a microSD breakout, two P-MOSFETs, a
+recycled Nokia phone battery, and a TP4056 USB charger.
+
+---
+
+## By the numbers
+
+| Metric                         | Value                                       |
+| ------------------------------ | ------------------------------------------- |
+| MCU SRAM                       | 2.5 KB total                                |
+| Streaming buffer in RAM        | 256 B (~10 % of SRAM)                       |
+| Frame size on SD               | 134.4 KB (600 × 448 × 4 bpp)                |
+| Idle current (measured)        | **0.3 mA**                                  |
+| Battery                        | Recycled Nokia BL-5C-class, ~1 000 mAh      |
+| Calculated autonomy (idle)     | 1 000 mAh ÷ 0.3 mA ≈ **138 days**           |
+| With daily image rotation      | ≈ **4 months** between charges              |
+| Sleep wake source              | AVR watchdog, 8-second tick                 |
+| Display refresh cycle          | ~25 s for a full 7-color update             |
+| Image rotation cadence         | 24 h, counted in 10 800 WDT ticks           |
+
+---
+
+## Engineering decisions
+
+Each of the choices below is the load-bearing one — most of them
+unlocked the rest.
+
+- **MOSFET power gating, not just deep sleep.** An ATmega32U4 in
+  `SLEEP_MODE_PWR_DOWN` is microamps, but the SD card's controller
+  continues drawing 50–200 µA while VCC is applied (chip-select doesn't
+  cut current to its internal logic), and the EPD's charge-pump circuit
+  leaks similarly. Two P-MOSFETs on the high side cut the peripherals
+  out of the VCC rail entirely, which is how the 0.3 mA total budget
+  becomes reachable.
+
+- **Offline image pipeline, not on-MCU quantization.** Floyd-Steinberg
+  error diffusion against a 7-color palette on a 600 × 448 image needs
+  at minimum two scanlines of working memory. With 2.5 KB of SRAM, two
+  RGB scanlines alone are 3.5 KB — it doesn't fit. Doing the dithering
+  offline moves the entire CPU and SRAM cost out of the runtime budget
+  permanently.
+
+- **Single SPI bus shared between SD and EPD.** Saves four GPIOs on a
+  pin-starved 32U4 (the USB hardware eats half the port). Bus
+  arbitration is trivial because the power-gating sequence guarantees
+  that only one peripheral is ever powered at a time — there's no
+  electrical possibility of contention.
+
+- **Streaming chunks instead of a frame buffer.** A frame is 134 400
+  bytes. SRAM is 2 560. The constraint dictates the architecture: the
+  EPD driver pulls 256 B at a time from a callback that reads straight
+  off the open SD `File`. The image never exists in RAM in one piece.
+
+- **Floyd-Steinberg over ordered dithering.** Error diffusion produces
+  noticeably better quality than Bayer-style ordered dithering at the
+  cost of being inherently serial and slower. Since the entire pipeline
+  runs on a PC once per image, "slower" is free. Quality wins.
+
+- **Watchdog as the only periodic wake.** An external RTC (DS3231,
+  PCF8523, etc.) would give precise daily timing, but adds a part, an
+  I²C bus, and a couple of µA of leakage through pull-ups. The AVR's
+  internal watchdog timer is ±10 % accurate, which on a 24-hour rotation
+  means images change at any moment within a couple of hours of the
+  nominal time. Acceptable for a photo frame. Fatal for an alarm clock.
 
 ---
 
 ## Hardware
 
-| Part                 | Notes                                                                 |
-| -------------------- | --------------------------------------------------------------------- |
-| MCU board            | SparkFun Pro Micro **3.3 V / 8 MHz** (ATmega32U4)                     |
-| Display              | Waveshare 5.65" 7-color ACeP e-paper, model **5.65inch e-Paper (F)**, 600 × 448 px |
-| Storage              | microSD card (FAT16/FAT32), wired to the same SPI bus as the EPD      |
-| SD power gate        | P-MOSFET driven by MCU pin **D6** (high-side switch on SD VCC)        |
-| EPD power gate       | P-MOSFET driven by MCU pin **D7** (high-side switch on EPD VCC)       |
-| Button               | Momentary push-button to GND on **INT1 / D3** (with internal pull-up) |
-| Battery              | Nokia BL-5C-class Li-ion cell (~1000 mAh, 3.7 V nominal)              |
-| Charger              | Any TP4056-style USB Li-ion charger module                            |
+| Part            | Notes                                                                 |
+| --------------- | --------------------------------------------------------------------- |
+| MCU             | SparkFun Pro Micro **3.3 V / 8 MHz** (ATmega32U4)                     |
+| Display         | Waveshare 5.65" 7-color ACeP, model **5.65inch e-Paper (F)**, 600 × 448 |
+| Storage         | microSD card on shared hardware SPI bus                               |
+| SD power gate   | P-MOSFET on SD VCC, driven by MCU **D6** (high-side switch)           |
+| EPD power gate  | P-MOSFET on EPD VCC, driven by MCU **D7** (high-side switch)          |
+| Button          | Momentary push-button to GND on **D2 / INT1**, internal pull-up       |
+| Battery         | Nokia BL-5C-class Li-ion cell (~1 000 mAh, 3.7 V nominal)             |
+| Charger         | Any TP4056-style USB Li-ion charging board                            |
 
-The SD card and the EPD share the AVR's hardware SPI bus. Only one peripheral
-is powered at a time, so chip-select arbitration is implicit — when SD is up,
-EPD is dark, and vice versa.
-
-Datasheets for the panel are **not included** in this repository
-(Waveshare copyright). You can get them from the official wiki:
+Datasheets are not redistributed in this repository (Waveshare copyright).
+The official wiki is the source of truth:
 <https://www.waveshare.com/wiki/5.65inch_e-Paper_Module_(F)>
 
 ---
 
-## Repository layout
+## Image pipeline
 
-```
-pitagram/
-├── assets/                          # Source files for icons (GIMP .xcf)
-├── firmware/
-│   └── platformio/pitagram/         # PlatformIO project
-│       ├── platformio.ini
-│       └── src/
-│           ├── main.cpp             # setup() / loop() — thin entry point
-│           ├── Pitagram.{cpp,h}     # Application FSM, image rotation
-│           ├── PowerMgr.{cpp,h}     # Sleep, WDT, MOSFET gating, VCC sense
-│           ├── MFButtonHandler.*    # Multi-click + long-press button
-│           ├── ISR.cpp              # AVR vector wiring (WDT, INT0, INT1)
-│           ├── epd5in65f.{cpp,h}    # Waveshare EPD driver (extended)
-│           ├── epdif.{cpp,h}        # Waveshare SPI HAL (extended)
-│           ├── Config.h             # Pins, timings, buffer size
-│           └── ImgFormatDefs.h      # PTG binary header
-├── tools/
-│   ├── convert.py                   # JPEG/PNG → 4bpp .bin with Floyd-Steinberg
-│   ├── hash.py                      # Rename outputs to 8.3-safe hashes
-│   ├── fixspaces.py                 # Strip spaces from filenames
-│   └── requirements.txt
-├── Makefile                         # Drives the offline pipeline
-├── LICENSE                          # MIT (this project) + third-party notices
-└── README.md
-```
-
-Photo directories (`source_pictures/`, `converted_pictures/`,
-`hashed_pictures/`) are gitignored. Drop your own images into
-`source_pictures/` and run `make`.
-
----
-
-## Offline image pipeline
-
-The MCU never sees JPEGs. Everything is paletized and dithered on a PC
-ahead of time so the firmware only has to memcpy bytes from SD to the EPD.
+The MCU never touches a JPEG. Quantization and dithering happen on a PC
+ahead of time, so the firmware only memcpys bytes from SD to the EPD.
 
 ```
 source_pictures/*.jpg
@@ -91,37 +118,21 @@ source_pictures/*.jpg
 converted_pictures/*.bin   # 16-byte PTG header + raw 4bpp linear pixels
         │
         ▼
-    tools/hash.py          # Optional: rename to 8-char MD5 hash so the
-        │                  # AVR SdFat build (no LFN) can read them
+    tools/hash.py          # Optional: rename to 8-char MD5 so the AVR
+        │                  # SdFat build (no LFN) can find them
         ▼
 hashed_pictures/*.bin      # → Copy these to the SD card
 ```
 
-### Setup
-
-```bash
-cd tools
-./install_requirements.sh   # creates a venv, installs Pillow + numpy
-```
-
-### Run
-
-```bash
-make            # build all converted_pictures/*.bin
-make hashed     # also build hashed copies for SdFat short-filename mode
-make clean      # remove all generated bins
-```
-
 ### Binary format (`ImgFormatDefs.h` / `convert.py`)
 
-| Offset | Size  | Field   | Value                              |
-| -----: | ----: | ------- | ---------------------------------- |
-|      0 |     3 | magic   | ASCII `"PTG"`                      |
-|      3 |    13 | reserved| zero-filled                        |
-|     16 | W·H/2 | pixels  | 4 bpp, two pixels per byte, MSB first, row-major |
+| Offset | Size  | Field    | Value                                            |
+| -----: | ----: | -------- | ------------------------------------------------ |
+|      0 |     3 | magic    | ASCII `"PTG"`                                    |
+|      3 |    13 | reserved | zero-filled                                      |
+|     16 | W·H/2 | pixels   | 4 bpp, two pixels per byte, MSB first, row-major |
 
-The 7-color palette (indices 0–6 used, 7 reserved for the panel's "clean"
-color) is the standard Waveshare ACeP mapping:
+### 7-color palette
 
 | Index | Color  | RGB                |
 | ----: | ------ | ------------------ |
@@ -133,33 +144,35 @@ color) is the standard Waveshare ACeP mapping:
 |     5 | Yellow | (255, 243, 56)     |
 |     6 | Orange | (232, 126, 0)      |
 
-A real photo dithered against this 7-color palette, side-by-side with the
-original on a monitor:
+A real photo dithered against this palette, side-by-side with the source:
 
 ![Floyd-Steinberg dithering against the 7-color ACeP palette, shown on the Waveshare 5.65" panel next to the source image](./assets/EPDTest.jpg)
 
-The panel renders one color per pixel from the palette above; Floyd-Steinberg
-error diffusion spreads the quantization error to neighbouring pixels so the
-eye reconstructs intermediate tones from spatial mixing. Detail in the soil,
-moss and out-of-focus background is what dithering is doing here — without
-it, the same scene would collapse into solid color blobs.
+The panel renders one color per pixel from the palette above. Floyd-Steinberg
+error diffusion spreads quantization error to neighbouring pixels, and the
+eye reconstructs intermediate tones from spatial mixing — the detail in the
+soil and out-of-focus background is dithering doing its job. Without it, the
+same scene would collapse into solid color blobs.
 
 ---
 
-## Firmware
+## Firmware architecture
 
-Built with [PlatformIO](https://platformio.org). Target environment:
-`sparkfun_promicro8` (ATmega32U4, 8 MHz). Single dependency: `greiman/SdFat`,
-configured for FAT16/FAT32 only and minimal cache to fit in 2.5 KB of SRAM.
+PlatformIO project at `firmware/platformio/pitagram/`. Target:
+`sparkfun_promicro8` (ATmega32U4, 8 MHz). Single library dependency:
+[`greiman/SdFat`](https://github.com/greiman/SdFat), configured for
+FAT16/FAT32 only and minimal cache to fit in 2.5 KB of SRAM.
 
-### Build & flash
+### Modules
 
-```bash
-cd firmware/platformio/pitagram
-pio run                          # build
-pio run --target upload          # flash via the Pro Micro USB bootloader
-pio device monitor               # optional, 115200 baud
-```
+| Module             | Responsibility                                                  |
+| ------------------ | --------------------------------------------------------------- |
+| `main.cpp`         | `setup()` / `loop()` — delegates to `g_power` and `g_pitagram`  |
+| `Pitagram`         | Application FSM, image rotation, file traversal                 |
+| `PowerMgr`         | Sleep, watchdog, MOSFET gating, VCC sense via bandgap reference |
+| `MFButtonHandler`  | ISR-driven debounce + multi-click + long-press state machine    |
+| `ISR.cpp`          | AVR vector wiring: `WDT_vect`, `INT0_vect`, `INT1_vect`         |
+| `epd5in65f`/`epdif`| Waveshare ACeP driver + SPI HAL (extended with stream API)      |
 
 ### State machine
 
@@ -184,90 +197,103 @@ pio device monitor               # optional, 115200 baud
                         └────────────────────────────┘
 ```
 
-- Every state ends with the MCU in `SLEEP_MODE_PWR_DOWN`.
-- The watchdog timer is the **only periodic wake source** — it fires every
-  ~8 s, increments a tick counter and goes back to sleep. All time-based
-  logic (24 h image rotation, button debounce) is counted in WDT ticks.
-- The button uses external interrupt `INT1` (D3) to wake the MCU
-  immediately on user input.
-- During EPD operations, the firmware sleeps between BUSY polls instead of
-  busy-waiting, so the Ready-state current is essentially the EPD's own.
+Every state ends with the MCU in `SLEEP_MODE_PWR_DOWN`. The only periodic
+wake source is the watchdog timer; `INT1` (the button) wakes asynchronously
+on user input. Even while the EPD is busy, the firmware sleeps between
+BUSY polls instead of busy-waiting, so steady-state current is essentially
+the EPD's own.
 
-### Power gating sequence
+### Power-gating sequence
 
 ```
-powerUpSD():    set D6 HIGH → P-MOSFET on  → wait settle → SdFat.begin()
-powerDownSD():  SdFat.end() → set D6 INPUT → P-MOSFET off (floating gate
-                                              pulled up by external R)
+powerUpSD():    set D6 HIGH → P-MOSFET on  → settle delay → SdFat.begin()
+powerDownSD():  SdFat.end() → set D6 INPUT → MOSFET off (gate floats up)
 ```
 
-Identical pattern on D7 for the EPD. The SPI bus pins are returned to
-INPUT between transactions so leakage through the (now unpowered)
-peripheral does not back-feed VCC through the protection diodes.
-
-### Streaming, not buffering
-
-Frames are 600 × 448 / 2 = **134,400 bytes** — that does not fit in 2.5 KB
-of SRAM, obviously. `Epd::EPD_5IN65F_Display_ext_full()` takes a
-`RequestData` callback and pumps a **256-byte chunk** at a time:
-
-```
-SD file ──► 256 B buffer ──► SPI ──► EPD
-```
-
-The EPD driver decides when the next chunk is needed; the callback fills
-it straight from the open `SdFat::File`. The whole image lives on SD,
-never in RAM.
+Identical pattern on D7 for the EPD. SPI pins are returned to `INPUT`
+between transactions so leakage through the (now unpowered) peripheral
+cannot back-feed VCC through the protection diodes.
 
 ---
 
 ## Usage
 
-Single button on D3:
+Single button on D2 — four actions on the same physical input:
 
-| Gesture        | Action                                           |
-| -------------- | ------------------------------------------------ |
-| 1 click        | Next image                                       |
-| 2 clicks       | Previous image                                   |
-| 3 clicks       | Reset the 24 h rotation timer (keep current longer) |
-| Long press     | Standby — clear screen to white and deep sleep   |
-| Click in standby | Wake, redisplay current image                  |
+| Gesture          | Action                                              |
+| ---------------- | --------------------------------------------------- |
+| 1 click          | Next image                                          |
+| 2 clicks         | Previous image                                      |
+| 3 clicks         | Reset the 24 h rotation timer (keep current longer) |
+| Long press       | Standby — clear screen to white and deep sleep      |
+| Click in standby | Wake, redisplay current image                       |
 
-A persistent "marker" file on the SD card remembers which image was last
-shown, so the rotation survives power cycles and battery swaps.
+A persistent marker file on the SD card remembers which image was last
+displayed, so the rotation survives power cycles and battery swaps.
 
 ---
 
-## Known issues
+## Repository layout
 
-- `tools/convert.py` uses `screen_resolution = (600, 480)` but the panel
-  is **600 × 448**. The extra 32 rows produce slightly oversized `.bin`
-  files; the firmware ignores them, but cropping with the wrong aspect
-  ratio shifts framing. Will be fixed once verified against a few sample
-  images.
-- Periodic full-screen "clean" pass to mitigate ghosting is not yet
-  scheduled — the panel's specification calls for one every N images.
-- Battery-level indicator on screen is not implemented; the firmware only
-  uses the bandgap-measured VCC to gate into `STATE_LOW_BATTERY`.
+```
+pitagram/
+├── assets/                # README images and icon sources
+├── firmware/              # PlatformIO project (Arduino C++)
+│   └── platformio/pitagram/
+├── tools/                 # Offline Python pipeline (Pillow + numpy)
+├── Makefile               # Drives the offline pipeline
+├── LICENSE                # MIT
+└── README.md              # This file
+```
+
+Photo directories (`source_pictures/`, `converted_pictures/`,
+`hashed_pictures/`) are gitignored — bring your own.
+
+---
+
+## Build & flash
+
+See **[BUILDING.md](./BUILDING.md)** for PlatformIO and Python setup,
+flashing the Pro Micro, and running the image pipeline.
+
+---
+
+## Roadmap
+
+- Fix `tools/convert.py` resolution: it crops to 600 × 480 but the panel
+  is 600 × 448. The extra 32 rows get truncated by the firmware, but the
+  pre-crop aspect ratio is wrong, shifting framing.
+- Schedule a periodic full-screen "clean" pass to mitigate ghosting,
+  per the Waveshare specification.
+- On-screen battery-level indicator. Today the firmware only uses the
+  bandgap-measured VCC to gate into `STATE_LOW_BATTERY`.
+- Burn `BODLEVEL = 111` to fully disable the brown-out detector and
+  reclaim its standby current.
+
+### What I'd do differently on v2
+
+- Add an external RTC (DS3231) for accurate daily rotation independent of
+  WDT drift.
+- Move to an ATmega328PB or an STM32L0 to escape the 32U4's USB
+  pin-eating without losing the deep-sleep budget.
+- Custom PCB combining the MOSFET gating, the TP4056 charger, and the
+  Pro Micro footprint — current build is three breakouts on perfboard.
 
 ---
 
 ## License
 
-Project code: **MIT** — see [LICENSE](./LICENSE).
+**MIT** — see [LICENSE](./LICENSE).
 
 Bundled third-party drivers retain their original Waveshare MIT-style
-headers (see `firmware/.../src/epd5in65f.*` and `epdif.*`). The single
+headers (`firmware/.../src/epd5in65f.*` and `epdif.*`). The single
 runtime dependency, [greiman/SdFat](https://github.com/greiman/SdFat),
 is also MIT.
 
 ## Acknowledgements
 
-- **Waveshare** for the 5.65" 7-color e-paper module and the Arduino
+- A YouTube video on color e-paper that started this whole rabbit hole.
+- **Waveshare** for the 5.65" 7-color ACeP panel and the Arduino
   reference driver this project's EPD layer is derived from.
-- **Bill Greiman** for SdFat, without which 2.5 KB of SRAM would not be
-  enough.
-
----
-
-![Pitagram, the finished product](./assets/FinalProduct.png)
+- **Bill Greiman** for SdFat — without it, 2.5 KB of SRAM would not be
+  enough to talk to a FAT32 card.
