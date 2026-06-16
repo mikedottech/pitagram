@@ -234,9 +234,6 @@ shown, so the rotation survives power cycles and battery swaps.
   files; the firmware ignores them, but cropping with the wrong aspect
   ratio shifts framing. Will be fixed once verified against a few sample
   images.
-- `firmware/.../src/main.cpp` keeps a verbatim SdFat example in the
-  `#else` branch as a reference snippet. It never compiles. Will either
-  get attributed or removed.
 - Periodic full-screen "clean" pass to mitigate ghosting is not yet
   scheduled — the panel's specification calls for one every N images.
 - Battery-level indicator on screen is not implemented; the firmware only
