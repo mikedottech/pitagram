@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Miguel Angel Exposito Sanchez
+
 # Directories
 SRC_DIR := source_pictures
 OUT_DIR := converted_pictures

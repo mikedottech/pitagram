@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Miguel Angel Exposito Sanchez
 
 from PIL import Image, ImageOps, ImageEnhance, ImageFilter
 import sys

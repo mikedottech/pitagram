@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Miguel Angel Exposito Sanchez
+
 #ifndef _PITAGRAM_H_
 #define _PITAGRAM_H_
 

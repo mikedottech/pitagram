@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Miguel Angel Exposito Sanchez
 
 # Create and activate a virtual environment in a temporary directory
 VENV_DIR=$(mktemp -d)

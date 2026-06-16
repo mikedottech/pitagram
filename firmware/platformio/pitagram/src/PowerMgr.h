@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Miguel Angel Exposito Sanchez
+
 #ifndef _POWERMGR_H_
 #define _POWERMGR_H_
 

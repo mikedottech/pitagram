@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Miguel Angel Exposito Sanchez
+
 #include "PowerMgr.h"
 
 #include "epd5in65f.h"
