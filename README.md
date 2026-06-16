@@ -186,6 +186,30 @@ FAT16/FAT32 only and minimal cache to fit in 2.5 KB of SRAM.
 > interface and an `avr/` implementation; everything else is already
 > portable.
 
+### Modifications to the Waveshare driver
+
+The stock Waveshare reference driver assumes the host has enough RAM to
+hold a full frame and busy-waits on the BUSY line in a tight loop.
+Neither assumption survives in 2.5 KB of SRAM on a battery-powered MCU,
+so I extended `epd5in65f` with two injection points:
+
+- **`dataProviderCallback`** — invoked by the EPD driver every time it
+  needs the next chunk of pixels. The application registers a callback
+  that reads `kCfgBufferSize` (256 B) straight from the open SD `File`
+  and hands the bytes back. The driver pushes them out over SPI without
+  ever materialising a full frame in RAM. This is what makes the
+  streaming architecture actually work end-to-end.
+
+- **`waitProviderCallback`** — invoked while the driver would otherwise
+  spin on the BUSY line waiting for the panel to finish a command. The
+  application's callback parks the MCU in `SLEEP_MODE_PWR_DOWN` and
+  relies on `INT0` (wired to BUSY) to wake it the moment the panel
+  releases the line. Steady-state current during a refresh becomes
+  the EPD's own draw, not the AVR's.
+
+Both additions preserve the original Waveshare MIT-style headers in
+`epd5in65f.{cpp,h}` and `epdif.{cpp,h}` as required.
+
 ### State machine
 
 ```
