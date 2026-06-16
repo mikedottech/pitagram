@@ -174,6 +174,18 @@ FAT16/FAT32 only and minimal cache to fit in 2.5 KB of SRAM.
 | `ISR.cpp`          | AVR vector wiring: `WDT_vect`, `INT0_vect`, `INT1_vect`         |
 | `epd5in65f`/`epdif`| Waveshare ACeP driver + SPI HAL (extended with stream API)      |
 
+> **On the lack of a proper HAL.** `PowerMgr` is the only module that
+> directly touches AVR-specific registers (watchdog, sleep modes, ADC for
+> bandgap VCC sense) and would be the natural candidate to sit behind a
+> hardware abstraction layer if this were ever ported to another MCU
+> family. I deliberately did not build that abstraction: the scope of the
+> project was a single prototype, built once, given as a gift. Paying the
+> design cost of a HAL for a target that will never be ported is exactly
+> the kind of premature abstraction worth resisting. If a v2 ever lands
+> on an STM32L0 (see roadmap), `PowerMgr` is what gets split into an
+> interface and an `avr/` implementation; everything else is already
+> portable.
+
 ### State machine
 
 ```
