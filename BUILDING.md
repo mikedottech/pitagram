@@ -66,15 +66,13 @@ From the repository root, with source images in `source_pictures/`:
 
 ```bash
 make                # build all converted_pictures/*.bin
-make hashed         # also build hashed copies for SdFat short-filename mode
 make clean          # remove all generated bins
 ```
 
 ### What ends up on the SD card
 
-Copy the contents of `hashed_pictures/` to the root of a FAT16/FAT32 SD
+Copy the contents of `converted_pictures/` to the root of a FAT16/FAT32 SD
 card. The firmware iterates files alphabetically and remembers the last
 displayed name in a marker file at the root.
 
-The hashed step exists because the firmware builds SdFat without long
-filename support to save SRAM — the 8.3 hashed name is what the AVR sees.
+The 8.3 hashed name is what the AVR sees.

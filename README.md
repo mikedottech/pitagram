@@ -40,7 +40,7 @@ recycled Nokia phone battery, and a TP4056 USB charger.
 
 ## Engineering decisions
 
-Each of the choices below is the load-bearing one — most of them
+Each of the choices below is the load-bearing one: most of them
 unlocked the rest.
 
 - **MOSFET power gating, not just deep sleep.** An ATmega32U4 in
@@ -54,14 +54,14 @@ unlocked the rest.
 - **Offline image pipeline, not on-MCU quantization.** Floyd-Steinberg
   error diffusion against a 7-color palette on a 600 × 448 image needs
   at minimum two scanlines of working memory. With 2.5 KB of SRAM, two
-  RGB scanlines alone are 3.5 KB — it doesn't fit. Doing the dithering
+  RGB scanlines alone are 3.5 KB: it doesn't fit. Doing the dithering
   offline moves the entire CPU and SRAM cost out of the runtime budget
   permanently.
 
 - **Single SPI bus shared between SD and EPD.** Saves four GPIOs on a
   pin-starved 32U4 (the USB hardware eats half the port). Bus
   arbitration is trivial because the power-gating sequence guarantees
-  that only one peripheral is ever powered at a time — there's no
+  that only one peripheral is ever powered at a time; there's no
   electrical possibility of contention.
 
 - **Streaming chunks instead of a frame buffer.** A frame is 134 400
@@ -106,9 +106,13 @@ The official wiki is the source of truth:
 
 The MCU never touches a JPEG. Quantization and dithering happen on a PC
 ahead of time, so the firmware only memcpys bytes from SD to the EPD.
+A Makefile runs convert.py on each new image that needs to be converted.
 
 ```
-source_pictures/*.jpg
+source_pictures/*.{jpg|jpeg|png}
+        │
+        ▼
+     Makefile
         │
         ▼
    tools/convert.py        # EXIF rotate → autocontrast → boxblur → gamma →
@@ -116,12 +120,8 @@ source_pictures/*.jpg
         │                  # quantize against the 7-color panel palette
         ▼
 converted_pictures/*.bin   # 16-byte PTG header + raw 4bpp linear pixels
-        │
-        ▼
-    tools/hash.py          # Optional: rename to 8-char MD5 so the AVR
-        │                  # SdFat build (no LFN) can find them
-        ▼
-hashed_pictures/*.bin      # → Copy these to the SD card
+                           # SdFat build (no LFN) can find them
+                           # → Copy these to the SD card
 ```
 
 ### Binary format (`ImgFormatDefs.h` / `convert.py`)
@@ -150,7 +150,7 @@ A real photo dithered against this palette, side-by-side with the source:
 
 The panel renders one color per pixel from the palette above. Floyd-Steinberg
 error diffusion spreads quantization error to neighbouring pixels, and the
-eye reconstructs intermediate tones from spatial mixing — the detail in the
+eye reconstructs intermediate tones from spatial mixing; the detail in the
 soil and out-of-focus background is dithering doing its job. Without it, the
 same scene would collapse into solid color blobs.
 
@@ -166,8 +166,8 @@ FAT16/FAT32 only and minimal cache to fit in 2.5 KB of SRAM.
 ### Modules
 
 | Module             | Responsibility                                                  |
-| ------------------ | --------------------------------------------------------------- |
-| `main.cpp`         | `setup()` / `loop()` — delegates to `g_power` and `g_pitagram`  |
+| ------------------ |-----------------------------------------------------------------|
+| `main.cpp`         | `setup()` / `loop()`: delegates to `g_power` and `g_pitagram`   |
 | `Pitagram`         | Application FSM, image rotation, file traversal                 |
 | `PowerMgr`         | Sleep, watchdog, MOSFET gating, VCC sense via bandgap reference |
 | `MFButtonHandler`  | ISR-driven debounce + multi-click + long-press state machine    |
@@ -218,14 +218,14 @@ cannot back-feed VCC through the protection diodes.
 
 ## Usage
 
-Single button on D2 — four actions on the same physical input:
+Single button on D2: four actions on the same physical input:
 
 | Gesture          | Action                                              |
-| ---------------- | --------------------------------------------------- |
+| ---------------- |-----------------------------------------------------|
 | 1 click          | Next image                                          |
 | 2 clicks         | Previous image                                      |
 | 3 clicks         | Reset the 24 h rotation timer (keep current longer) |
-| Long press       | Standby — clear screen to white and deep sleep      |
+| Long press       | Standby: clear screen to white and deep sleep       |
 | Click in standby | Wake, redisplay current image                       |
 
 A persistent marker file on the SD card remembers which image was last
@@ -247,7 +247,7 @@ pitagram/
 ```
 
 Photo directories (`source_pictures/`, `converted_pictures/`,
-`hashed_pictures/`) are gitignored — bring your own.
+`hashed_pictures/`) are gitignored: bring your own.
 
 ---
 
@@ -277,13 +277,13 @@ flashing the Pro Micro, and running the image pipeline.
 - Move to an ATmega328PB or an STM32L0 to escape the 32U4's USB
   pin-eating without losing the deep-sleep budget.
 - Custom PCB combining the MOSFET gating, the TP4056 charger, and the
-  Pro Micro footprint — current build is three breakouts on perfboard.
-
+  Pro Micro footprint: current build is three breakouts on perfboard.
+- Swap the voltage regulator in the board for a lower power LDO
 ---
 
 ## License
 
-**MIT** — see [LICENSE](./LICENSE).
+**MIT** (see [LICENSE](./LICENSE)).
 
 Bundled third-party drivers retain their original Waveshare MIT-style
 headers (`firmware/.../src/epd5in65f.*` and `epdif.*`). The single
@@ -295,5 +295,5 @@ is also MIT.
 - A YouTube video on color e-paper that started this whole rabbit hole.
 - **Waveshare** for the 5.65" 7-color ACeP panel and the Arduino
   reference driver this project's EPD layer is derived from.
-- **Bill Greiman** for SdFat — without it, 2.5 KB of SRAM would not be
+- **Bill Greiman** for SdFat: without it, 2.5 KB of SRAM would not be
   enough to talk to a FAT32 card.
