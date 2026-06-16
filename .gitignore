@@ -1,0 +1,32 @@
+# Personal image data — never published
+__source_pictures/
+source_pictures/
+converted_pictures/
+hashed_pictures/
+
+# Third-party datasheets (copyright of the manufacturer, not redistributable)
+datasheets/
+
+# PlatformIO build artifacts
+firmware/platformio/pitagram/.pio/
+firmware/platformio/pitagram/.vscode/.browse.c_cpp.db*
+firmware/platformio/pitagram/.vscode/c_cpp_properties.json
+firmware/platformio/pitagram/.vscode/launch.json
+firmware/platformio/pitagram/.vscode/ipch/
+
+# Python tooling
+tools/__pycache__/
+tools/.venv/
+*.pyc
+
+# Local agent / SDD tooling
+.atl/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor scratch
+*.swp
+*.swo
+*~
