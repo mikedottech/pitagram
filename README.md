@@ -93,12 +93,77 @@ unlocked the rest.
 | SD power gate   | P-MOSFET on SD VCC, driven by MCU **D6** (high-side switch)           |
 | EPD power gate  | P-MOSFET on EPD VCC, driven by MCU **D7** (high-side switch)          |
 | Button          | Momentary push-button to GND on **D2 / INT1**, internal pull-up       |
+| Reset button    | Momentary push-button between the Pro Micro **RST** pin and GND       |
 | Battery         | Nokia BL-5C-class Li-ion cell (~1 000 mAh, 3.7 V nominal)             |
 | Charger         | Any TP4056-style USB Li-ion charging board                            |
 
 Datasheets are not redistributed in this repository (Waveshare copyright).
 The official wiki is the source of truth:
 <https://www.waveshare.com/wiki/5.65inch_e-Paper_Module_(F)>
+
+### Wiring
+
+Block diagram of the full electrical topology — power flow on top
+(battery → charger → MOSFET-gated rails), peripherals in the middle, and
+the Pro Micro pinout at the bottom as the explicit net-list. Arrows
+indicate signal direction relative to the MCU.
+
+```
+              +5 V (USB)                  VBAT (Nokia BL-5C, ~3.7 V)
+                  │                                  ^
+                  └────────────► TP4056 ◄────────────┘
+                                    │
+                                    ▼  VCC rail
+       ┌────────────────────────────┼────────────────────────────┐
+       │                            │                            │
+       │                ┌───────────┴───────────┐                │
+       │                │                       │                │
+       ▼                ▼                       ▼                │
+ ┌────────────┐  ┌────────────────┐    ┌────────────────┐        │
+ │  Pro Micro │  │ P-MOSFET (SD)  │    │ P-MOSFET (EPD) │        │
+ │ (see below)│  │ Gate  ◄── D6   │    │ Gate  ◄── D7   │        │
+ └────────────┘  │ Drain ─► SD_VCC│    │ Drain ─► EPD_VCC│       │
+                 └────────┬───────┘    └────────┬───────┘        │
+                          │                     │                │
+                          ▼                     ▼                │
+                 ┌─────────────────┐   ┌──────────────────────┐  │
+                 │  microSD slot   │   │ Waveshare 5.65" ACeP │  │
+                 │                 │   │   EPD module         │  │
+                 │  VCC ◄── SD_VCC │   │  VCC ◄── EPD_VCC     │  │
+                 │  GND            │   │  GND                 │  │
+                 │  CS    ◄── D4   │   │  CS    ◄── D10       │  │
+                 │  MOSI  ◄── D16  │   │  DIN   ◄── D16       │  │
+                 │  MISO  ──► D14  │   │  CLK   ◄── D15       │  │
+                 │  SCLK  ◄── D15  │   │  DC    ◄── D9        │  │
+                 └─────────────────┘   │  RST   ◄── D8        │  │
+                                       │  BUSY  ──► D3 (INT0) │  │
+                                       └──────────────────────┘  │
+                                                                 │
+ ┌───────────────────────────────────────────────────────────────┘
+ │
+ ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │  Pro Micro (SparkFun, 3.3 V / 8 MHz, ATmega32U4)            │
+ │                                                             │
+ │   RST         ◄── Reset button → GND                        │
+ │   D2  (INT1)  ◄── Button → GND   (internal pull-up)         │
+ │   D3  (INT0)  ◄── EPD BUSY                                  │
+ │   D4          ──► SD CS                                     │
+ │   D6          ──► SD-gate MOSFET                            │
+ │   D7          ──► EPD-gate MOSFET                           │
+ │   D8          ──► EPD RST                                   │
+ │   D9          ──► EPD DC                                    │
+ │   D10         ──► EPD CS                                    │
+ │   D14 (MISO)  ◄── SD MISO                                   │
+ │   D15 (SCLK)  ──► SD SCLK + EPD CLK    (shared SPI bus)     │
+ │   D16 (MOSI)  ──► SD MOSI + EPD DIN    (shared SPI bus)     │
+ └─────────────────────────────────────────────────────────────┘
+```
+
+The shared SPI bus (D14/D15/D16) reaches both peripherals, but only one
+is ever powered at a time — `D6` and `D7` are mutually exclusive — so
+there is no electrical possibility of bus contention even though both
+chip-selects sit on independent GPIOs.
 
 ---
 
